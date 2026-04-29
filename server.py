@@ -257,7 +257,7 @@ def get_ffmpeg_record_command(output_path: str) -> list:
         ]
     elif plt == "linux":
         return [
-            "ffmpeg", "-f", "x11grab", "-i", ":0.0",
+            "ffmpeg", "-f", "x11grab", "-i", os.environ.get("DISPLAY", ":0.0"),
             "-y",
             output_path
         ]
@@ -289,7 +289,7 @@ def get_ffmpeg_screenshot_command(output_path: str) -> list:
         ]
     elif plt == "linux":
         return [
-            "ffmpeg", "-f", "x11grab", "-i", ":0.0",
+            "ffmpeg", "-f", "x11grab", "-i", os.environ.get("DISPLAY", ":0.0"),
             "-frames:v", "1",
             "-y",
             output_path
@@ -411,8 +411,9 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             cmd = get_ffmpeg_record_command(output_path)
             recording_process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
             )
             recording_output = output_path
             recording_start_time = time.time()
@@ -441,8 +442,9 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         
         try:
             # ffmpeg 需要发送 'q' 键来优雅停止
-            recording_process.communicate(input=b'q', timeout=5)
-            recording_process.wait(timeout=5)
+            # 发送 SIGINT 信号优雅停止（等ffmpeg flush缓冲区）
+            recording_process.send_signal(subprocess.signal.SIGINT)
+            recording_process.wait(timeout=10)
             
             result = recording_output
             
